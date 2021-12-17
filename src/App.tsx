@@ -1,7 +1,7 @@
 import React from "react";
 import logo from "./logo.svg";
 import "./App.css";
-import { TVChartContainer } from "./components";
+import TVChartContainer from "./components";
 
 function App() {
   return (

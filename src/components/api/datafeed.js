@@ -57,6 +57,7 @@ async function getAllSymbols() {
       });
       allSymbols = [...allSymbols, ...symbols];
     }
+    console.log(allSymbols);
   }
   return allSymbols;
 }
@@ -163,6 +164,7 @@ export default {
           ];
         }
       });
+      console.log("bars", bars);
       console.log(`[getBars]: returned ${bars.length} bar(s)`);
       onHistoryCallback(bars, { noData: false });
     } catch (error) {
