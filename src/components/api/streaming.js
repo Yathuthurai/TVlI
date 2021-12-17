@@ -3,8 +3,8 @@ import { parseFullSymbol } from "./helper";
 const channelToSubscription = new Map();
 
 var io = require("socket.io-client");
-var socket_url = "wss://streamer.cryptocompare.com";
-var socket = io(socket_url);
+// var socket_url = "wss://streamer.cryptocompare.com";
+// var socket = io(socket_url);
 
 export function subscribeOnStream(
   symbolInfo,
