@@ -1,7 +1,16 @@
 import { makeApiRequest, generateSymbol, parseFullSymbol } from "./helper";
-// import { subscribeOnStream, unsubscribeFromStream } from "./streaming";
+import { subscribeOnStream, unsubscribeFromStream } from "./streaming";
 
 const lastBarsCache = new Map();
+
+const msg = {
+  type: "subscribe",
+  market: "BTC-PERP",
+};
+
+const rs = {
+  type: "done_subscribe",
+};
 
 const configurationData = {
   supported_resolutions: ["1D", "1W", "1M"],
@@ -35,30 +44,38 @@ const configurationData = {
 
 async function getAllSymbols() {
   const data = await makeApiRequest("data/v3/all/exchanges");
-  let allSymbols = [];
+  let allSymbols = [
+    {
+      description: "BTC/USD",
+      exchange: "Bitfinex",
+      full_name: "Bitfinex:BTC/USD",
+      symbol: "BTC/USD",
+      type: "crypto",
+    },
+  ];
 
-  for (const exchange of configurationData.exchanges) {
-    const pairs = data.Data[exchange.value].pairs;
+  // for (const exchange of configurationData.exchanges) {
+  //   const pairs = data.Data[exchange.value].pairs;
 
-    for (const leftPairPart of Object.keys(pairs)) {
-      const symbols = pairs[leftPairPart].map((rightPairPart) => {
-        const symbol = generateSymbol(
-          exchange.value,
-          leftPairPart,
-          rightPairPart
-        );
-        return {
-          symbol: symbol.short,
-          full_name: symbol.full,
-          description: symbol.short,
-          exchange: exchange.value,
-          type: "crypto",
-        };
-      });
-      allSymbols = [...allSymbols, ...symbols];
-    }
-    console.log(allSymbols);
-  }
+  // for (const leftPairPart of Object.keys(pairs)) {
+  //   const symbols = pairs[leftPairPart].map((rightPairPart) => {
+  //     const symbol = generateSymbol(
+  //       exchange.value,
+  //       leftPairPart,
+  //       rightPairPart
+  //     );
+  //     return {
+  //       symbol: symbol.short,
+  //       full_name: symbol.full,
+  //       description: symbol.short,
+  //       exchange: exchange.value,
+  //       type: "crypto",
+  //     };
+  //   });
+  //   allSymbols = [...allSymbols, ...symbols];
+  // }
+  //   console.log(allSymbols);
+  // }
   return allSymbols;
 }
 
@@ -150,6 +167,7 @@ export default {
         return;
       }
       let bars = [];
+      console.log("data.Data -->  ", data.Data);
       data.Data.forEach((bar) => {
         if (bar.time >= from && bar.time < to) {
           bars = [
@@ -165,8 +183,16 @@ export default {
         }
       });
       console.log("bars", bars);
+
+      if (firstDataRequest) {
+        lastBarsCache.set(symbolInfo.full_name, {
+          ...bars[bars.length - 1],
+        });
+      }
       console.log(`[getBars]: returned ${bars.length} bar(s)`);
-      onHistoryCallback(bars, { noData: false });
+      onHistoryCallback(bars, {
+        noData: false,
+      });
     } catch (error) {
       console.log("[getBars]: Get error", error);
       onErrorCallback(error);
@@ -183,11 +209,21 @@ export default {
       "[subscribeBars]: Method call with subscribeUID:",
       subscribeUID
     );
+    subscribeOnStream(
+      symbolInfo,
+      resolution,
+      onRealtimeCallback,
+      subscribeUID,
+      onResetCacheNeededCallback,
+      lastBarsCache.get(symbolInfo.full_name)
+    );
   },
+
   unsubscribeBars: (subscriberUID) => {
     console.log(
       "[unsubscribeBars]: Method call with subscriberUID:",
       subscriberUID
     );
+    unsubscribeFromStream(subscriberUID);
   },
 };

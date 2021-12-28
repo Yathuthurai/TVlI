@@ -1,10 +1,79 @@
 import { parseFullSymbol } from "./helper";
-
+const socket = require("socket.io-client").io(
+  "wss://streamer.cryptocompare.com"
+);
 const channelToSubscription = new Map();
 
-var io = require("socket.io-client");
-// var socket_url = "wss://streamer.cryptocompare.com";
-// var socket = io(socket_url);
+socket.on("connect", () => {
+  console.log("[socket] Connected");
+});
+
+socket.on("disconnect", (reason) => {
+  console.log("[socket] Disconnected:", reason);
+});
+
+socket.on("error", (error) => {
+  console.log("[socket] Error:", error);
+});
+
+socket.on("m", (data) => {
+  console.log("[socket] Message:", data);
+  const [
+    eventTypeStr,
+    exchange,
+    fromSymbol,
+    toSymbol,
+    ,
+    ,
+    tradeTimeStr,
+    ,
+    tradePriceStr,
+  ] = data.split("~");
+
+  if (parseInt(eventTypeStr) !== 0) {
+    // skip all non-TRADE events
+    return;
+  }
+  const tradePrice = parseFloat(tradePriceStr);
+  const tradeTime = parseInt(tradeTimeStr);
+  const channelString = `0~${exchange}~${fromSymbol}~${toSymbol}`;
+  const subscriptionItem = channelToSubscription.get(channelString);
+  if (subscriptionItem === undefined) {
+    return;
+  }
+  const lastDailyBar = subscriptionItem.lastDailyBar;
+  const nextDailyBarTime = getNextDailyBarTime(lastDailyBar.time);
+
+  let bar;
+  if (tradeTime >= nextDailyBarTime) {
+    bar = {
+      time: nextDailyBarTime,
+      open: tradePrice,
+      high: tradePrice,
+      low: tradePrice,
+      close: tradePrice,
+    };
+    console.log("[socket] Generate new bar", bar);
+  } else {
+    bar = {
+      ...lastDailyBar,
+      high: Math.max(lastDailyBar.high, tradePrice),
+      low: Math.min(lastDailyBar.low, tradePrice),
+      close: tradePrice,
+    };
+    console.log("[socket] Update the latest bar by price", tradePrice);
+  }
+  subscriptionItem.lastDailyBar = bar;
+
+  // send data to every subscriber of that symbol
+  subscriptionItem.handlers.forEach((handler) => handler.callback(bar));
+});
+
+function getNextDailyBarTime(barTime) {
+  const date = new Date(barTime * 1000);
+  date.setDate(date.getDate() + 1);
+  return date.getTime() / 1000;
+}
 
 export function subscribeOnStream(
   symbolInfo,
@@ -14,6 +83,7 @@ export function subscribeOnStream(
   onResetCacheNeededCallback,
   lastDailyBar
 ) {
+  console.log("---------subscribing---------");
   const parsedSymbol = parseFullSymbol(symbolInfo.full_name);
   const channelString = `0~${parsedSymbol.exchange}~${parsedSymbol.fromSymbol}~${parsedSymbol.toSymbol}`;
   const handler = {
@@ -65,15 +135,3 @@ export function unsubscribeFromStream(subscriberUID) {
     }
   }
 }
-
-socket.on("connect", () => {
-  console.log("[socket] Connected");
-});
-
-socket.on("disconnect", (reason) => {
-  console.log("[socket] Disconnected:", reason);
-});
-
-socket.on("error", (error) => {
-  console.log("[socket] Error:", error);
-});
